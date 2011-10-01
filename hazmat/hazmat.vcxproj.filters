@@ -20,10 +20,10 @@
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="Main.cc">
+    <ClCompile Include="Main.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="ArchiveStructure.cc">
+    <ClCompile Include="ArchiveStructure.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

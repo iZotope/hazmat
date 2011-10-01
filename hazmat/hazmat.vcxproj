@@ -75,8 +75,8 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="ArchiveStructure.cc" />
-    <ClCompile Include="Main.cc" />
+    <ClCompile Include="ArchiveStructure.cpp" />
+    <ClCompile Include="Main.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ArchiveStructure.h" />
