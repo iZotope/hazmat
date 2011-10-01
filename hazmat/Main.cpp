@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <DbgHelp.h>
 #include <iterator>
+#include <map>
 #include "ArchiveStructure.h"
 using namespace std;
 
@@ -17,47 +18,42 @@ int main (int argc, char* argv[]) {
         return EXIT_FAILURE;
     }
 
+	//strings for our argument inputs
 	string lib_filename("");
 	string out_filename("");
 	string namespace_nest("");
+	string exclusions_to_tokenize("");
 	vector<string> exclusions;
+	
+	//Create a map of strings to string references, so we can easily pass in arguments in any order
+	map<string,string&> argument_to_string;
+	argument_to_string.insert(pair<string,string&>("/IN:",lib_filename));
+	argument_to_string.insert(pair<string,string&>("/OUT:",out_filename));
+	argument_to_string.insert(pair<string,string&>("/NEST:",namespace_nest));
+	argument_to_string.insert(pair<string,string&>("/X:",exclusions_to_tokenize));
 
+	//For each of the arguments
 	for(int i = 0; i < argc; ++i) {
 		string arg(argv[i]);
 
-		size_t command = arg.find("/IN:");
-		if(command != string::npos) {
-			size_t split = arg.find_first_of(":") + 1;
-			lib_filename = arg.substr(split);
-			continue;
-		} 
-		//refactor city, population you
-		command = arg.find("/OUT:");
-		if(command != string::npos) {
-			size_t split = arg.find_first_of(":") + 1;
-			out_filename = arg.substr(split);
-			continue;
-		} 
-
-		command = arg.find("/NEST:");
-		if(command != string::npos) {
-			size_t split = arg.find_first_of(":") + 1;
-			namespace_nest = arg.substr(split);
-			continue;
-		} 
-
-		command = arg.find("/X:");
-		if(command != string::npos) {
-			size_t split = arg.find_first_of(":") + 1;
-			string temp;
-			istringstream iss(arg.substr(split));
-			while(getline(iss,temp,',')) {
-				exclusions.push_back(temp);
-			}
-			continue;
-		} 
+		//split the argument on the :
+		size_t split = arg.find_first_of(":") + 1;
+		string param_data = arg.substr(split);
+		string argument = arg.substr(0,split);
+		
+		//lookup the argument command in our map
+		map<string,string&>::iterator iter = argument_to_string.find(argument);
+		if(iter != argument_to_string.end()) {
+			(*iter).second = param_data; //update the referenced string
+		}
 	}
 
+	//turn the exclusions string into a vector of strings
+	string temp;
+	istringstream iss(exclusions_to_tokenize);
+	while(getline(iss,temp,',')) {
+		exclusions.push_back(temp);
+	}
 
     cout << "Loading Library : " << lib_filename << endl;
 	
