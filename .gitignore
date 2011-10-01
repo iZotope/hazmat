@@ -1,0 +1,8 @@
+*.sdf
+*.opensdf
+*.tlog
+*.suo
+Debug/
+Release/
+ipch/
+*.user
