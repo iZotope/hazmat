@@ -142,7 +142,6 @@ bool SecondLinkerMember::ReadEntry(fstream &file)  {
 	if(number_of_members == 0)
 		return false;
 
-	cout << "Offset table in linker table is at offset: " << file.tellg() << endl;
 	offsets_table.resize(number_of_members);
 	file.read(reinterpret_cast<char*>(&offsets_table[0]), sizeof(unsigned long) * number_of_members);
 
@@ -368,6 +367,7 @@ bool ArchiveFile::Write(const string namespace_nest, fstream &libfile, vector<st
 				//do i need to update the short names???
 				continue;
 			} else {
+				//Symbols that are Undefined or Abosolute should not be altered
 				if(members[i].symbol_table[j].SectionNumber <= IMAGE_SYM_UNDEFINED)
 					exclusions.push_back(members[i].string_table[k]);
 
