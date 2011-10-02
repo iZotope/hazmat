@@ -259,7 +259,6 @@ bool ArchiveMember::ReadEntry(std::fstream &file) {
 	int start_position = static_cast<int>(file.tellg());
 
 	file.read(reinterpret_cast<char*>(&file_header), sizeof(file_header));
-	
 	section_data.resize(file_header.PointerToSymbolTable-sizeof(file_header)); //from the end of the file header to the beginning of the symbol table is section data
 	file.read(reinterpret_cast<char*>(&section_data[0]), section_data.size());
 

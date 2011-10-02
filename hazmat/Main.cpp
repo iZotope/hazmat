@@ -44,7 +44,8 @@ int main (int argc, char* argv[]) {
 		//lookup the argument command in our map
 		map<string,string&>::iterator iter = argument_to_string.find(argument);
 		if(iter != argument_to_string.end()) {
-			(*iter).second = param_data; //update the referenced string
+			//update the referenced string
+			(*iter).second = param_data; 
 		}
 	}
 
@@ -58,8 +59,8 @@ int main (int argc, char* argv[]) {
     cout << "Loading Library : " << lib_filename << endl;
 	
 	cout << "Excluding symbols that substring match : " << endl;
-	copy(exclusions.begin(), exclusions.end(), ostream_iterator<string>(cout, "\n"));
-
+	for_each(exclusions.begin(), exclusions.end(), [](string str) { cout << std::string(4, ' ') << str << endl; } );
+	
     //open the file as a binary input stream
     fstream libfile;
     libfile.open(lib_filename, ios::binary | ios::in );
