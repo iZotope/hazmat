@@ -11,4 +11,5 @@ which will be accessed externally.
 
 Compiling
 ---------
-A Visual Studio 2010 sln file "hazmat.sln" is included for building the executable.
+A Visual Studio 2010 sln file "hazmat.sln" is included for building the executable. It has been tested in Debug and Release
+builds for Win32.
