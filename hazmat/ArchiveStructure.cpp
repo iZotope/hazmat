@@ -293,9 +293,7 @@ bool ArchiveFile::Read(fstream &libfile) {
 
 void UpdateSymbolName(string &input, const string &nest) {
     //only update symbols in the inclusive table
-    set<string>::iterator inclusion_check = inclusive_string_set.find(input);
-
-    if(inclusion_check == inclusive_string_set.end())
+    if(inclusive_string_set.find(input) == inclusive_string_set.end())
         return;
 
     size_t find_at_at = input.find("@@");
@@ -322,7 +320,8 @@ bool ArchiveFile::Write(const string namespace_nest, fstream &libfile, vector<st
 
         //update the symbol long pointers
         unsigned int k = 0;
-        for(unsigned int j = 0; j< members[i].symbol_table.size(); ++j) {            
+        for(unsigned int j = 0; j< members[i].symbol_table.size(); ++j) {
+            //If the short name is non-zero, it doesn't have a string entry
             if(members[i].symbol_table[j].N.Name.Short) {
                 //do i need to update the short names???
                 continue;
@@ -385,14 +384,22 @@ bool ArchiveFile::Write(const string namespace_nest, fstream &libfile, vector<st
     //Write out everything, and fill a temp offset table for writing at the end
     vector<unsigned long> temp_offset_table(second_linker.number_of_members);
 
-    //Write to a file
+    //Write Image Archive start string
     libfile.write(reinterpret_cast<char*>(&archstring), sizeof(char)*IMAGE_ARCHIVE_START_SIZE);
     
+    //Write first linker member entry
     first_linker.WriteEntry(libfile);
+
+    //Grab the offset to the second linker table offset table to update at the end
     unsigned int second_linker_offset_table_offset = static_cast<unsigned int>(libfile.tellp()) + sizeof(IMAGE_ARCHIVE_MEMBER_HEADER) + sizeof(unsigned long);
+    
+    //Write the second linker member etry
     second_linker.WriteEntry(libfile);
+
+    //Write the longnames member
     longnames.WriteEntry(libfile);
     
+    //Write all obj members and headers
     for(unsigned int i = 0; i< members.size()-1; ++i) {
         temp_offset_table[i] = static_cast<unsigned long>(libfile.tellp());
         members[i].WriteEntry(libfile);
