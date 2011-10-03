@@ -7,6 +7,7 @@
 #include <vector>
 #include <map>
 #include <set>
+#include <intrin.h>
 #include <DbgHelp.h>
 #include "ArchiveStructure.h"
 using namespace std;
@@ -18,19 +19,20 @@ namespace {
     set<string> inclusive_string_set;
 }
 
-//=============================================================================
-// Converts from big endian to little endian numbers.
-//=============================================================================
-DWORD ConvertBigEndian(DWORD bigEndian)
-{
-    DWORD temp = 0;
+//Pad the file out and return the delta of stop - start
+unsigned int PadFileStream(fstream &file, unsigned int start_position = 0) {
+    int stop_position = (file.flags() | ios::in) ? static_cast<int>(file.tellg()) : static_cast<int>(file.tellp());
 
-    temp |= bigEndian >> 24;
-    temp |= ((bigEndian & 0x00FF0000) >> 8);
-    temp |= ((bigEndian & 0x0000FF00) << 8);
-    temp |= ((bigEndian & 0x000000FF) << 24);
+    if( (stop_position - start_position) % 2 ){
+        char padding;
+        if(file.flags() | ios::in) {
+            file.read(&padding, sizeof(padding));
+        } else {
+            file.write(&padding, sizeof(padding));
+        }
+    }
 
-    return temp;
+    return stop_position - start_position;
 }
 
 //converts a char array that is NOT null terminated into a integer
@@ -70,7 +72,7 @@ bool FirstLinkerMember::ReadEntry(fstream &file)  {
     int start_position = static_cast<int>(file.tellg());
 
     file.read(reinterpret_cast<char*>(&number_of_symbols), sizeof(number_of_symbols));
-    number_of_symbols = ConvertBigEndian(number_of_symbols);
+    number_of_symbols = _byteswap_ulong(number_of_symbols);
     if(number_of_symbols == 0) {
         cerr << "No symbols found";
         return false;
@@ -88,15 +90,7 @@ bool FirstLinkerMember::ReadEntry(fstream &file)  {
         inclusive_string_set.insert(symbol_name);
     }
 
-    int stop_position = static_cast<int>(file.tellg());
-
-    if( (stop_position - start_position) % 2 ){
-        char padding;
-        file.read(&padding, sizeof(padding));
-        
-    }
-
-    TotalSize += stop_position - start_position;
+    TotalSize += PadFileStream(file, start_position);
     return true;
 }
 
@@ -106,7 +100,7 @@ bool FirstLinkerMember::WriteEntry(fstream &file)  {
     int start_position = static_cast<int>(file.tellg());
 
 
-    unsigned long number_of_symbols_flipped = ConvertBigEndian(number_of_symbols);
+    unsigned long number_of_symbols_flipped = _byteswap_ulong(number_of_symbols);
     file.write(reinterpret_cast<char*>(&number_of_symbols_flipped), sizeof(number_of_symbols));
     
 
@@ -116,12 +110,7 @@ bool FirstLinkerMember::WriteEntry(fstream &file)  {
         file.write(string_table[i].c_str(), string_table[i].length() + 1);
     }
 
-    int stop_position = static_cast<int>(file.tellg());
-
-    if( (stop_position - start_position) % 2 ){
-        char padding(10);
-        file.write(&padding, sizeof(padding));
-    }
+    PadFileStream(file, start_position);
 
     return true;
 }
@@ -161,15 +150,7 @@ bool SecondLinkerMember::ReadEntry(fstream &file)  {
         string_table.push_back(symbol_name);
     }
 
-    int stop_position = static_cast<int>(file.tellg());
-
-    if( (stop_position - start_position) % 2 ){
-        char padding;
-        file.read(&padding, sizeof(padding));
-        
-    }
-        
-    TotalSize += stop_position - start_position;
+    TotalSize += PadFileStream(file, start_position);
     return true;
 }
 
@@ -191,12 +172,7 @@ bool SecondLinkerMember::WriteEntry(fstream &file)  {
         file.write(string_table[i].c_str(), string_table[i].length() + 1);
     }
 
-    int stop_position = static_cast<int>(file.tellg());
-
-    if( (stop_position - start_position) % 2 ){
-        char padding(10);
-        file.write(&padding, sizeof(padding));
-    }
+    PadFileStream(file, start_position);
 
     return true;
 }
@@ -221,16 +197,7 @@ bool LongnamesMember::ReadEntry(std::fstream &file) {
         memsize -= longname.size() + 1; //+1 for the \0 at the end of the string
     }
     
-    int stop_position = static_cast<int>(file.tellg());
-
-    if( (stop_position - start_position) % 2 ){
-        char padding;
-        file.read(&padding, sizeof(padding));
-        
-    }
-
-    
-    TotalSize += stop_position - start_position;
+    TotalSize += PadFileStream(file, start_position);
 
     return true;
 }
@@ -244,12 +211,7 @@ bool LongnamesMember::WriteEntry(std::fstream &file) {
         file.write(longnames_table[i].c_str(), longnames_table[i].length() + 1);
     }
 
-    int stop_position = static_cast<int>(file.tellg());
-
-    if( (stop_position - start_position) % 2 ){
-        char padding(10);
-        file.write(&padding, sizeof(padding));
-    }
+    PadFileStream(file, start_position);
 
     return true;
 }
@@ -264,7 +226,9 @@ bool ArchiveMember::ReadEntry(std::fstream &file) {
     int start_position = static_cast<int>(file.tellg());
 
     file.read(reinterpret_cast<char*>(&file_header), sizeof(file_header));
-    section_data.resize(file_header.PointerToSymbolTable-sizeof(file_header)); //from the end of the file header to the beginning of the symbol table is section data
+
+    //from the end of the file header to the beginning of the symbol table is section data
+    section_data.resize(file_header.PointerToSymbolTable-sizeof(file_header));
     file.read(reinterpret_cast<char*>(&section_data[0]), section_data.size());
 
     symbol_table.resize(file_header.NumberOfSymbols);
@@ -280,15 +244,7 @@ bool ArchiveMember::ReadEntry(std::fstream &file) {
         string_table.push_back(string_table_entry);
     }
 
-    int stop_position = static_cast<int>(file.tellg());
-
-    if( (stop_position - start_position) % 2 ){
-        char padding;
-        file.read(&padding, sizeof(padding));
-        
-    }
-    
-    TotalSize += stop_position - start_position;
+    TotalSize += PadFileStream(file, start_position);
 
     return true;
 }
@@ -307,20 +263,9 @@ bool ArchiveMember::WriteEntry(std::fstream &file) {
 
     file.write(reinterpret_cast<char*>(&string_table_size), sizeof(string_table_size));
 
-    int j = 0;
-    for(unsigned int i = 0; i < file_header.NumberOfSymbols; ++i) {
-        if(symbol_table[i].N.Name.Short)
-            continue;
-        file.write(string_table[j].c_str(), string_table[j].length()+1);
-        ++j;
-    }
+    for_each(string_table.begin(), string_table.end(), [&file](string str) { file.write(str.c_str(), str.length() + 1); } );
 
-    int stop_position = static_cast<int>(file.tellg());
-
-    if( (stop_position - start_position) % 2 ){
-        char padding(10);
-        file.write(&padding, sizeof(padding));
-    }
+    PadFileStream(file, start_position);
 
     return true;
 }
