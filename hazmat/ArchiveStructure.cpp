@@ -303,16 +303,16 @@ void UpdateSymbolName(string &input, const string &nest) {
         input = nest + input;
 }
 
-bool ArchiveFile::Write(const string namespace_nest, fstream &libfile, vector<string> &exclusions) {
-    
-    //Start by removing explicetly excluded symbols from our inclusive set of renameable symbols
+bool ArchiveFile::NestSymbols(const string &namespace_nest, const vector<string> &exclusions) {
+
+    //Start by removing explicitly excluded symbols from our inclusive set of re nameable symbols
     for_each(exclusions.begin(), exclusions.end(), [](string str) { inclusive_string_set.erase(str); });
 
     //Update tables
 
     //start by updating the members
     for(unsigned int i = 0; i< members.size(); ++i) {
-        
+
         //update the strings in the string tables
 
         //start the offset at 4 bytes, since the first 4 bytes of the string table is actually the string table size
@@ -381,6 +381,10 @@ bool ArchiveFile::Write(const string namespace_nest, fstream &libfile, vector<st
         memcpy(&first_linker.header.Size,datasize.str().c_str(), datasize.str().length());
     }
 
+    return true;
+}
+
+bool ArchiveFile::Write(fstream &libfile) {
     //Write out everything, and fill a temp offset table for writing at the end
     vector<unsigned long> temp_offset_table(second_linker.number_of_members);
 
@@ -393,7 +397,7 @@ bool ArchiveFile::Write(const string namespace_nest, fstream &libfile, vector<st
     //Grab the offset to the second linker table offset table to update at the end
     unsigned int second_linker_offset_table_offset = static_cast<unsigned int>(libfile.tellp()) + sizeof(IMAGE_ARCHIVE_MEMBER_HEADER) + sizeof(unsigned long);
     
-    //Write the second linker member etry
+    //Write the second linker member entry
     second_linker.WriteEntry(libfile);
 
     //Write the longnames member

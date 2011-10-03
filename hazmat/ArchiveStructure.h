@@ -1,7 +1,7 @@
 #pragma once
 
 struct ArchiveEntry {
-    ArchiveEntry(){}
+    ArchiveEntry() : TotalSize(0){}
     virtual ~ArchiveEntry() {}
 
     IMAGE_ARCHIVE_MEMBER_HEADER header;
@@ -13,7 +13,7 @@ struct ArchiveEntry {
 };
 
 struct FirstLinkerMember : public ArchiveEntry {
-    FirstLinkerMember(){}
+    FirstLinkerMember() : number_of_symbols(0){}
     virtual ~FirstLinkerMember() {}
 
     unsigned long number_of_symbols;
@@ -25,7 +25,7 @@ struct FirstLinkerMember : public ArchiveEntry {
 };
 
 struct SecondLinkerMember : public ArchiveEntry  {
-    SecondLinkerMember(){}
+    SecondLinkerMember() : number_of_members(0), number_of_symbols(0){}
     virtual ~SecondLinkerMember() {}
     
     unsigned long number_of_members;
@@ -48,7 +48,7 @@ struct LongnamesMember  : public ArchiveEntry {
 };
 
 struct ArchiveMember : public ArchiveEntry {
-    ArchiveMember(std::fstream &file) { ReadEntry(file); }
+    ArchiveMember(std::fstream &file) : string_table_size(0) { ReadEntry(file); }
     virtual ~ArchiveMember(){}
 
     IMAGE_FILE_HEADER file_header;
@@ -86,5 +86,6 @@ struct ArchiveFile {
     std::vector<ArchiveMember> members;
     
     bool Read(std::fstream &libfile);
-    bool Write(const std::string namespace_nest, std::fstream &libfile, std::vector<std::string> &exclusions);
+    bool Write(std::fstream &libfile);
+    bool NestSymbols(const std::string &namespace_nest, const std::vector<std::string> &exclusions);
 };

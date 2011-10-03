@@ -19,7 +19,7 @@ int main (int argc, char* argv[]) {
     }
 
     //strings for our argument inputs
-    string lib_filename("");
+    string in_filename("");
     string out_filename("");
     string namespace_nest("");
     string exclusions_to_tokenize("");
@@ -27,7 +27,7 @@ int main (int argc, char* argv[]) {
     
     //Create a map of strings to string references, so we can easily pass in arguments in any order
     map<string,string&> argument_to_string;
-    argument_to_string.insert(pair<string,string&>("/IN:",lib_filename));
+    argument_to_string.insert(pair<string,string&>("/IN:",in_filename));
     argument_to_string.insert(pair<string,string&>("/OUT:",out_filename));
     argument_to_string.insert(pair<string,string&>("/NEST:",namespace_nest));
     argument_to_string.insert(pair<string,string&>("/X:",exclusions_to_tokenize));
@@ -42,7 +42,7 @@ int main (int argc, char* argv[]) {
         string argument = arg.substr(0,split);
         
         //lookup the argument command in our map
-        map<string,string&>::iterator iter = argument_to_string.find(argument);
+        auto iter = argument_to_string.find(argument);
         if(iter != argument_to_string.end()) {
             //update the referenced string
             (*iter).second = param_data; 
@@ -56,29 +56,41 @@ int main (int argc, char* argv[]) {
         exclusions.push_back(temp);
     }
 
-    cout << "Loading Library : " << lib_filename << endl;
+    cout << "Loading Library : " << in_filename << endl;
     
     cout << "Excluding symbols that substring match : " << endl;
     for_each(exclusions.begin(), exclusions.end(), [](string str) { cout << std::string(4, ' ') << str << endl; } );
     
-    //open the file as a binary input stream
-    fstream libfile;
-    libfile.open(lib_filename, ios::binary | ios::in );
-    if(libfile.fail()) {
-        cerr << "Failed to open library" << endl;
-        cin.get();
+    //open the input file as a binary input stream
+    fstream lib_in_file;
+    lib_in_file.open(in_filename, ios::binary | ios::in );
+    if(lib_in_file.fail()) {
+        cerr << "Failed to open input library " << in_filename << endl;
         return EXIT_FAILURE;
     }
 
+    //open the output file as a binary output stream
+    fstream lib_out_file;
+    lib_out_file.open(out_filename, ios::binary | ios::out);
+    if(lib_in_file.fail()) {
+        cerr << "Failed to open output library " << out_filename << endl;
+        return EXIT_FAILURE;
+    }
+
+
     ArchiveFile archive;
     
-    archive.Read(libfile);
-    libfile.close();
+    //parse the archive file
+    archive.Read(lib_in_file);
 
-    fstream out_file;
-    out_file.open(out_filename, ios::binary | ios::out);
-    archive.Write(namespace_nest, out_file, exclusions);
-    out_file.close();
+    //Nest the all the symbols except those in 'exclusions' into namespace_nest
+    archive.NestSymbols(namespace_nest, exclusions);
+
+    //write the altered archive file out
+    archive.Write(lib_out_file);
+    
+    lib_in_file.close();
+    lib_out_file.close();
 
     return EXIT_SUCCESS;
 }
