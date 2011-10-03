@@ -3,8 +3,8 @@
 using namespace std;
 
 namespace {
-    const unsigned int IMAGE_HEADER_NAME_SIZE = 16;
-    const unsigned int IMAGE_HEADER_SIZE_SIZE = 10;
+    const unsigned int IMAGE_HEADER_NAME_SIZE = 16u;
+    const unsigned int IMAGE_HEADER_SIZE_SIZE = 10u;
     const streamsize MAX_SYMBOL_NAME_LENGTH = 512;
     set<string> inclusive_string_set;
 }
@@ -14,7 +14,7 @@ unsigned int PadFileStream(fstream * const file, unsigned int start_position = 0
     int stop_position = (file->flags() | ios::in) ? static_cast<int>(file->tellg()) : static_cast<int>(file->tellp());
 
     if( (stop_position - start_position) % 2 ){
-        char padding;
+        char padding(10);
         if(file->flags() | ios::in) {
             file->read(&padding, sizeof(padding));
         } else {
@@ -28,7 +28,7 @@ unsigned int PadFileStream(fstream * const file, unsigned int start_position = 0
 // converts a char array that is NOT null terminated into a integer
 int ConvertCStrToInt(const char* cstr, int size) {
         string str;
-        str.resize(10);
+        str.resize(size);
         copy(cstr, cstr+size, str.begin());
         int memsize(0);
         stringstream(str) >> memsize;
