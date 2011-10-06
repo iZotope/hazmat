@@ -1,10 +1,7 @@
 #pragma once
 
-#ifndef HAZMAT_ARCHIVESTRUCTURE_H_
-#define HAZMAT_ARCHIVESTRUCTURE_H_
-
 struct ArchiveEntry {
-    ArchiveEntry() : TotalSize(0) {}
+    ArchiveEntry() : TotalSize(0) { ZeroMemory(&header, sizeof(header)); }
     virtual ~ArchiveEntry() {}
 
     IMAGE_ARCHIVE_MEMBER_HEADER header;
@@ -51,7 +48,11 @@ struct LongnamesMember  : public ArchiveEntry {
 };
 
 struct ArchiveMember : public ArchiveEntry {
-    ArchiveMember(std::fstream * const file) : string_table_size(0) { ReadEntry(file); }
+    ArchiveMember(std::fstream * const file) :
+        string_table_size(0) 
+        {
+            ArchiveMember::ReadEntry(file);
+        }
     virtual ~ArchiveMember() {}
 
     IMAGE_FILE_HEADER file_header;
@@ -91,4 +92,4 @@ struct ArchiveFile {
     bool Write(std::fstream * const libfile);
     bool NestSymbols(const std::string &namespace_nest, const std::vector<std::string> &exclusions);
 };
-#endif // HAZMAT_ARCHIVESTRUCTURE_H_
+

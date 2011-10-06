@@ -7,33 +7,48 @@ namespace {
     const unsigned int IMAGE_HEADER_SIZE_SIZE = 10u;
     const streamsize MAX_SYMBOL_NAME_LENGTH = 512;
     set<string> inclusive_string_set;
-}
 
-// Pad the file out and return the delta of stop - start
-unsigned int PadFileStream(fstream * const file, unsigned int start_position = 0) {
-    int stop_position = (file->flags() | ios::in) ? static_cast<int>(file->tellg()) : static_cast<int>(file->tellp());
+    // Pad the file out and return the delta of stop - start
+    unsigned int PadFileStream(fstream * const file, unsigned int start_position = 0) {
+        int stop_position = (file->flags() | ios::in) ? static_cast<int>(file->tellg()) : static_cast<int>(file->tellp());
 
-    if( (stop_position - start_position) % 2 ){
-        char padding(10);
-        if(file->flags() | ios::in) {
-            file->read(&padding, sizeof(padding));
-        } else {
-            file->write(&padding, sizeof(padding));
+        if( (stop_position - start_position) % 2 ){
+            char padding(10);
+            if(file->flags() | ios::in) {
+                file->read(&padding, sizeof(padding));
+            } else {
+                file->write(&padding, sizeof(padding));
+            }
         }
+
+        return stop_position - start_position;
     }
 
-    return stop_position - start_position;
-}
-
-// converts a char array that is NOT null terminated into a integer
-int ConvertCStrToInt(const char* cstr, int size) {
+    // converts a char array that is NOT null terminated into a integer
+    int ConvertCStrToInt(const char* cstr, int size) {
         string str;
         str.resize(size);
         copy(cstr, cstr+size, str.begin());
         int memsize(0);
         stringstream(str) >> memsize;
         return memsize;
+    }
+
+    // Takes an input string as a c++ mangled symbol name, and adds nest as the highest level namespace
+    void UpdateSymbolName(string * const edit_string, const string &nest) {
+        // only update symbols in the inclusive table
+        if(inclusive_string_set.find(*edit_string) == inclusive_string_set.end())
+            return;
+
+        size_t find_at_at = edit_string->find("@@");
+        if(find_at_at != string::npos)
+            edit_string->replace(find_at_at, 2, "@" + nest + "@@");
+        else
+            *edit_string = nest + *edit_string;
+    }
 }
+
+
 
 bool ArchiveEntry::ReadEntry(fstream * const file) {
     TotalSize = 0;
@@ -54,7 +69,7 @@ bool ArchiveEntry::WriteEntry(fstream * const file) {
 bool FirstLinkerMember::ReadEntry(fstream * const file)  {
     ArchiveEntry::ReadEntry(file);
 
-    if(strncmp(IMAGE_ARCHIVE_LINKER_MEMBER, reinterpret_cast<char*>(&header.Name), IMAGE_HEADER_NAME_SIZE) != 0) {
+    if(strncmp(IMAGE_ARCHIVE_LINKER_MEMBER, reinterpret_cast<char*>(&header.Name[0]), IMAGE_HEADER_NAME_SIZE) != 0) {
         cerr << "Failed to properly read first linker member" << endl;
         return false;
     }
@@ -115,7 +130,7 @@ bool SecondLinkerMember::ReadEntry(fstream * const file)  {
     std::vector<unsigned short> indices;
     std::vector<std::string> string_table;*/
 
-    if(strncmp(IMAGE_ARCHIVE_LINKER_MEMBER, reinterpret_cast<char*>(&header.Name), IMAGE_HEADER_NAME_SIZE) != 0) {
+    if(strncmp(IMAGE_ARCHIVE_LINKER_MEMBER, reinterpret_cast<char*>(&header.Name[0]), IMAGE_HEADER_NAME_SIZE) != 0) {
         cerr << "Failed to properly read first linker member" << endl;
         return false;
     }
@@ -171,7 +186,7 @@ bool SecondLinkerMember::WriteEntry(fstream * const file)  {
 bool LongnamesMember::ReadEntry(fstream * const file) {
     ArchiveEntry::ReadEntry(file);
 
-    if(strncmp(IMAGE_ARCHIVE_LONGNAMES_MEMBER, reinterpret_cast<char*>(&header.Name), IMAGE_HEADER_NAME_SIZE) != 0) {
+    if(strncmp(IMAGE_ARCHIVE_LONGNAMES_MEMBER, reinterpret_cast<char*>(&header.Name[0]), IMAGE_HEADER_NAME_SIZE) != 0) {
         cerr << "Failed to properly read first linker member" << endl;
         return false;
     }
@@ -210,7 +225,7 @@ bool LongnamesMember::WriteEntry(fstream * const file) {
 bool ArchiveMember::ReadEntry(fstream * const file) {
     ArchiveEntry::ReadEntry(file);
 
-    int memsize( ConvertCStrToInt(reinterpret_cast<char*>(header.Size), IMAGE_HEADER_SIZE_SIZE) );
+    int memsize( ConvertCStrToInt(reinterpret_cast<char*>(&header.Size[0]), IMAGE_HEADER_SIZE_SIZE) );
     if(memsize == 0)
         return true;
     int start_position = static_cast<int>(file->tellg());
@@ -261,7 +276,7 @@ bool ArchiveMember::WriteEntry(fstream * const file) {
 }
 
 bool ArchiveFile::Read(fstream * const libfile) {
-    libfile->read(reinterpret_cast<char*>(&archstring), sizeof(char)*IMAGE_ARCHIVE_START_SIZE);
+    libfile->read(reinterpret_cast<char*>(&archstring[0]), sizeof(char)*IMAGE_ARCHIVE_START_SIZE);
 
     // test the validity of the lib file by looking at the null terminated string at the front of the file
     // IMAGE_ARCHIVE_START = "!<arch>\n" in WinNT.h
@@ -279,18 +294,6 @@ bool ArchiveFile::Read(fstream * const libfile) {
     }
 
     return true;
-}
-
-void UpdateSymbolName(string * const edit_string, const string &nest) {
-    // only update symbols in the inclusive table
-    if(inclusive_string_set.find(*edit_string) == inclusive_string_set.end())
-        return;
-
-    size_t find_at_at = edit_string->find("@@");
-    if(find_at_at != string::npos)
-        edit_string->replace(find_at_at, 2, "@" + nest + "@@");
-    else
-        *edit_string = nest + *edit_string;
 }
 
 bool ArchiveFile::NestSymbols(const string &namespace_nest, const vector<string> &exclusions) {
