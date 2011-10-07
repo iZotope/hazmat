@@ -6,6 +6,11 @@ namespace {
     const unsigned int IMAGE_HEADER_NAME_SIZE = 16u;
     const unsigned int IMAGE_HEADER_SIZE_SIZE = 10u;
     const streamsize MAX_SYMBOL_NAME_LENGTH = 512;
+
+    //the inclusive string set consists of every string
+    // in the string table of the first member, which
+    // encompasses all symbols that the linker can find
+    // in this library
     set<string> inclusive_string_set;
 
     // Pad the file out and return the delta of stop - start
@@ -26,9 +31,12 @@ namespace {
 
     // converts a char array that is NOT null terminated into a integer
     int ConvertCStrToInt(const char* cstr, int size) {
+        //create a string of the target size and copy the cstr into it
         string str;
         str.resize(size);
         copy(cstr, cstr+size, str.begin());
+
+        //use stringstream to convert to integer
         int memsize(0);
         stringstream(str) >> memsize;
         return memsize;
@@ -40,16 +48,20 @@ namespace {
         if(inclusive_string_set.find(*edit_string) == inclusive_string_set.end())
             return;
 
+        //find the first @@ which indicates the end of the mangled name
         size_t find_at_at = edit_string->find("@@");
-        if(find_at_at != string::npos)
+        if(find_at_at != string::npos) {
+            // replace @@ with @nest@@
             edit_string->replace(find_at_at, 2, "@" + nest + "@@");
-        else
+        } else {
+            // if there is no @@, prepend the nest name
             *edit_string = nest + *edit_string;
+        }
     }
 }
 
 
-
+// Base archive ReadEntry reads the header
 bool ArchiveEntry::ReadEntry(fstream * const file) {
     TotalSize = 0;
     ZeroMemory(&header, sizeof(header));
@@ -58,6 +70,7 @@ bool ArchiveEntry::ReadEntry(fstream * const file) {
     return true;
 }
 
+// Base archive WriteEntry writes the header
 bool ArchiveEntry::WriteEntry(fstream * const file) {
     int memsize( ConvertCStrToInt(reinterpret_cast<char*>(header.Size), IMAGE_HEADER_SIZE_SIZE) );
     if(memsize == 0)
@@ -66,9 +79,11 @@ bool ArchiveEntry::WriteEntry(fstream * const file) {
     return true;
 }
 
+// 1st linker member read entry
 bool FirstLinkerMember::ReadEntry(fstream * const file)  {
     ArchiveEntry::ReadEntry(file);
 
+    // 1st linker member has the name /
     if(strncmp(IMAGE_ARCHIVE_LINKER_MEMBER, reinterpret_cast<char*>(&header.Name[0]), IMAGE_HEADER_NAME_SIZE) != 0) {
         cerr << "Failed to properly read first linker member" << endl;
         return false;
@@ -77,15 +92,20 @@ bool FirstLinkerMember::ReadEntry(fstream * const file)  {
     int start_position = static_cast<int>(file->tellg());
 
     file->read(reinterpret_cast<char*>(&number_of_symbols), sizeof(number_of_symbols));
+    // number of symbols field needs to be endian swapped
     number_of_symbols = _byteswap_ulong(number_of_symbols);
     if(number_of_symbols == 0) {
         cerr << "No symbols found";
         return false;
     }
 
+    // after the number of symbols entry, there is a table containing offsets that point to
+    //  the the location of each obj file that the corresponding symbol is contained in
+    //  ie. offset 0 is the obj file that contains symbol name 0
     offsets_table.resize(number_of_symbols);
     file->read(reinterpret_cast<char*>(&offsets_table[0]), sizeof(unsigned long) * number_of_symbols);
 
+    // after the offset table is the string table containing all symbol names for this library
     for(unsigned int i = 0; i < number_of_symbols; ++i) {
         string symbol_name;
         getline(*file, symbol_name, '\0');
@@ -99,28 +119,30 @@ bool FirstLinkerMember::ReadEntry(fstream * const file)  {
     return true;
 }
 
+// 1st linker member entry write
 bool FirstLinkerMember::WriteEntry(fstream * const file)  {
     ArchiveEntry::WriteEntry(file);
     
     int start_position = static_cast<int>(file->tellg());
 
-
+    // endian swap the number of symbols and write it out
     unsigned long number_of_symbols_flipped = _byteswap_ulong(number_of_symbols);
     file->write(reinterpret_cast<char*>(&number_of_symbols_flipped), sizeof(number_of_symbols));
     
-
+    // write offset table
     file->write(reinterpret_cast<char*>(&offsets_table[0]), sizeof(unsigned long) * number_of_symbols);
 
-    for(unsigned int i = 0; i < number_of_symbols; ++i) {
-        file->write(string_table[i].c_str(), string_table[i].length() + 1);
-    }
+    // write string table
+    for_each(string_table.begin(), string_table.end(), [file](string str) {
+        file->write(str.c_str(), str.length() + 1);
+    });
 
     PadFileStream(file, start_position);
 
     return true;
 }
 
-
+// 2nd linker member entry read
 bool SecondLinkerMember::ReadEntry(fstream * const file)  {
     ArchiveEntry::ReadEntry(file);
 /*
@@ -130,25 +152,31 @@ bool SecondLinkerMember::ReadEntry(fstream * const file)  {
     std::vector<unsigned short> indices;
     std::vector<std::string> string_table;*/
 
+    // 2nd linker member has the name /
     if(strncmp(IMAGE_ARCHIVE_LINKER_MEMBER, reinterpret_cast<char*>(&header.Name[0]), IMAGE_HEADER_NAME_SIZE) != 0) {
-        cerr << "Failed to properly read first linker member" << endl;
+        cerr << "Failed to properly read second linker member" << endl;
         return false;
     }
 
     int start_position = static_cast<int>(file->tellg());
 
+    // Read the number of members
     file->read(reinterpret_cast<char*>(&number_of_members), sizeof(number_of_members));
     if(number_of_members == 0)
         return false;
 
+    // After the number of members is the offset table
     offsets_table.resize(number_of_members);
     file->read(reinterpret_cast<char*>(&offsets_table[0]), sizeof(unsigned long) * number_of_members);
 
+    // Number of symbols in the 2nd linker member is not endian swapped
     file->read(reinterpret_cast<char*>(&number_of_symbols), sizeof(number_of_symbols));
     
+    // The indices table maps the offset table to the string table
     indices.resize(number_of_symbols);
     file->read(reinterpret_cast<char*>(&indices[0]), sizeof(unsigned short) * number_of_symbols);
 
+    // after the indices table is the symbol string table
     for(unsigned int i = 0; i < number_of_symbols; ++i) {
         string symbol_name;
         getline(*file, symbol_name, '\0');
@@ -159,7 +187,7 @@ bool SecondLinkerMember::ReadEntry(fstream * const file)  {
     return true;
 }
 
-
+// 2nd linker member entry write
 bool SecondLinkerMember::WriteEntry(fstream * const file)  {
     ArchiveEntry::WriteEntry(file);
 
@@ -173,28 +201,31 @@ bool SecondLinkerMember::WriteEntry(fstream * const file)  {
     
     file->write(reinterpret_cast<char*>(&indices[0]), sizeof(unsigned short) * number_of_symbols);
 
-    for(unsigned int i = 0; i < number_of_symbols; ++i) {
-        file->write(string_table[i].c_str(), string_table[i].length() + 1);
-    }
+    for_each(string_table.begin(), string_table.end(), [file](string str) {
+        file->write(str.c_str(), str.length() + 1);
+    });
 
     PadFileStream(file, start_position);
 
     return true;
 }
 
-
+// long name member entry read
 bool LongnamesMember::ReadEntry(fstream * const file) {
     ArchiveEntry::ReadEntry(file);
 
+    // long name member is called //
     if(strncmp(IMAGE_ARCHIVE_LONGNAMES_MEMBER, reinterpret_cast<char*>(&header.Name[0]), IMAGE_HEADER_NAME_SIZE) != 0) {
         cerr << "Failed to properly read first linker member" << endl;
         return false;
     }
 
+    // get the total size of the data associated with the long name member
     int memsize( ConvertCStrToInt(reinterpret_cast<char*>(header.Size), IMAGE_HEADER_SIZE_SIZE) );
 
     int start_position = static_cast<int>(file->tellg());
 
+    // grab each string in the long name table
     while(memsize > 0) {
         string longname;
         getline(*file, longname, '\0');
@@ -207,14 +238,16 @@ bool LongnamesMember::ReadEntry(fstream * const file) {
     return true;
 }
 
+// long name member entry write
 bool LongnamesMember::WriteEntry(fstream * const file) {
     ArchiveEntry::WriteEntry(file);
 
     int start_position = static_cast<int>(file->tellg());
 
-    for(unsigned int i = 0; i< longnames_table.size(); ++i) {
-        file->write(longnames_table[i].c_str(), longnames_table[i].length() + 1);
-    }
+    // write the table of long names
+    for_each(longnames_table.begin(), longnames_table.end(), [file](string str) {
+            file->write(str.c_str(), str.length() + 1); 
+    });
 
     PadFileStream(file, start_position);
 
@@ -222,26 +255,33 @@ bool LongnamesMember::WriteEntry(fstream * const file) {
 }
 
 
+// obj member entry read
 bool ArchiveMember::ReadEntry(fstream * const file) {
     ArchiveEntry::ReadEntry(file);
 
+    // check to see if the data size for this obj file is 0
     int memsize( ConvertCStrToInt(reinterpret_cast<char*>(&header.Size[0]), IMAGE_HEADER_SIZE_SIZE) );
     if(memsize == 0)
         return true;
     int start_position = static_cast<int>(file->tellg());
 
+    // there is an IMAGE_FILE_HEADER at the beginning of the obj data
     file->read(reinterpret_cast<char*>(&file_header), sizeof(file_header));
 
     // from the end of the file header to the beginning of the symbol table is section data
     section_data.resize(file_header.PointerToSymbolTable-sizeof(file_header));
     file->read(reinterpret_cast<char*>(&section_data[0]), section_data.size());
 
+    // after the section data is a symbol table
     symbol_table.resize(file_header.NumberOfSymbols);
     file->read(reinterpret_cast<char*>(&symbol_table[0]), sizeof(IMAGE_SYMBOL) * file_header.NumberOfSymbols);
 
+    // the first 4 bytes of the string table represents the size of the string table
     file->read(reinterpret_cast<char*>(&string_table_size), sizeof(string_table_size));
 
+    // go through each entry in the symbol table
     for(unsigned int i = 0; i<file_header.NumberOfSymbols; ++i) {
+        // if the short symbol name is non-zero, there is no entry in the string table
         if(symbol_table[i].N.Name.Short)
             continue;
         string string_table_entry;
@@ -254,6 +294,7 @@ bool ArchiveMember::ReadEntry(fstream * const file) {
     return true;
 }
 
+// obj member entry write
 bool ArchiveMember::WriteEntry(fstream * const file) {
     if(!ArchiveEntry::WriteEntry(file))
         return false;
@@ -275,7 +316,9 @@ bool ArchiveMember::WriteEntry(fstream * const file) {
     return true;
 }
 
+// Archive file read 
 bool ArchiveFile::Read(fstream * const libfile) {
+    // read the arch string
     libfile->read(reinterpret_cast<char*>(&archstring[0]), sizeof(char)*IMAGE_ARCHIVE_START_SIZE);
 
     // test the validity of the lib file by looking at the null terminated string at the front of the file
@@ -285,10 +328,12 @@ bool ArchiveFile::Read(fstream * const libfile) {
         return false;
     }
 
+    // read the 1st, 2nd and long name members
     first_linker.ReadEntry(libfile);
     second_linker.ReadEntry(libfile);
     long_names.ReadEntry(libfile);
     
+    // read obj members until there is no more file to read
     while(!libfile->eof()) {
         members.push_back(ArchiveMember(libfile));
     }
@@ -296,6 +341,7 @@ bool ArchiveFile::Read(fstream * const libfile) {
     return true;
 }
 
+// Nest the symbols in the parse archive file into namespace_nest
 bool ArchiveFile::NestSymbols(const string &namespace_nest, const vector<string> &exclusions) {
 
     // Start by removing explicitly excluded symbols from our inclusive set of re nameable symbols
@@ -316,11 +362,12 @@ bool ArchiveFile::NestSymbols(const string &namespace_nest, const vector<string>
         for(unsigned int j = 0; j< members[i].symbol_table.size(); ++j) {
             // If the short name is non-zero, it doesn't have a string entry
             if(members[i].symbol_table[j].N.Name.Short) {
-                // do i need to update the short names???
                 continue;
             } else {
+                // update the symbol name
                 UpdateSymbolName(&members[i].string_table[k], namespace_nest);
 
+                // update the offset to the entry in the string table for this symbol
                 members[i].symbol_table[j].N.Name.Long = offset;
                 offset += members[i].string_table[k].length() + 1;
                 ++k;
@@ -377,6 +424,7 @@ bool ArchiveFile::NestSymbols(const string &namespace_nest, const vector<string>
     return true;
 }
 
+// archive file write
 bool ArchiveFile::Write(fstream * const libfile) {
     // Write out everything, and fill a temp offset table for writing at the end
     vector<unsigned long> temp_offset_table(second_linker.number_of_members);
