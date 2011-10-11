@@ -42,21 +42,13 @@ namespace {
         return memsize;
     }
 
-    // Takes an input string as a c++ mangled symbol name, and adds nest as the highest level namespace
-    void UpdateSymbolName(string * const edit_string, const string &nest) {
-        // only update symbols in the inclusive table
-        if(inclusive_string_set.find(*edit_string) == inclusive_string_set.end())
-            return;
-
-        //find the first @@ which indicates the end of the mangled name
-        size_t find_at_at = edit_string->find("@@");
-        if(find_at_at != string::npos) {
-            // replace @@ with @nest@@
-            edit_string->replace(find_at_at, 2, "@" + nest + "@@");
-        } else {
-            // if there is no @@, prepend the nest name
-            *edit_string = nest + *edit_string;
-        }
+    // Iterate through a vector of functions applying each function to the edit_string
+    void ApplyStringEditFunctions(string * const edit_string, vector<function<void(string * const)> > edit_funcs) {
+        for_each(edit_funcs.begin(), edit_funcs.end(), 
+            [edit_string](function<void(string * const)> func) {
+                func(edit_string);
+            }
+        );
     }
 }
 
@@ -342,7 +334,7 @@ bool ArchiveFile::Read(fstream * const libfile) {
 }
 
 // Nest the symbols in the parse archive file into namespace_nest
-bool ArchiveFile::NestSymbols(const string &namespace_nest, const vector<string> &exclusions) {
+bool ArchiveFile::EditSymbolNames(const vector<string> &exclusions, vector<function<void (string * const edit_string)> > update_symbol_name_funcs) {
 
     // Start by removing explicitly excluded symbols from our inclusive set of re nameable symbols
     for_each(exclusions.begin(), exclusions.end(), [](string str) { inclusive_string_set.erase(str); });
@@ -365,7 +357,9 @@ bool ArchiveFile::NestSymbols(const string &namespace_nest, const vector<string>
                 continue;
             } else {
                 // update the symbol name
-                UpdateSymbolName(&members[i].string_table[k], namespace_nest);
+                if(inclusive_string_set.find(members[i].string_table[k]) != inclusive_string_set.end()) {
+                    ApplyStringEditFunctions(&members[i].string_table[k], update_symbol_name_funcs);
+                }
 
                 // update the offset to the entry in the string table for this symbol
                 members[i].symbol_table[j].N.Name.Long = offset;
@@ -391,8 +385,9 @@ bool ArchiveFile::NestSymbols(const string &namespace_nest, const vector<string>
         unsigned int offset = 0;
         for(unsigned int i = 0; i < second_linker.string_table.size(); ++i) {
             second_linker.TotalSize -= (second_linker.string_table[i].length() + 1);
-
-            UpdateSymbolName(&second_linker.string_table[i], namespace_nest);
+            if(inclusive_string_set.find(second_linker.string_table[i]) != inclusive_string_set.end()) {
+                ApplyStringEditFunctions(&second_linker.string_table[i], update_symbol_name_funcs);
+            }
             offset += second_linker.string_table[i].length() + 1;
         }
 
@@ -409,8 +404,9 @@ bool ArchiveFile::NestSymbols(const string &namespace_nest, const vector<string>
         unsigned int offset = 0;
         for(unsigned int i = 0; i< first_linker.string_table.size(); ++i) {
             first_linker.TotalSize -= (first_linker.string_table[i].length() + 1);
-
-            UpdateSymbolName(&first_linker.string_table[i], namespace_nest);
+            if(inclusive_string_set.find(first_linker.string_table[i]) != inclusive_string_set.end()) {
+                ApplyStringEditFunctions(&first_linker.string_table[i], update_symbol_name_funcs);
+            }
             offset += first_linker.string_table[i].length() + 1;
         }
 
