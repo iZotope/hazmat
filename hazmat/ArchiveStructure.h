@@ -1,5 +1,6 @@
 #pragma once
-
+// ArchiveStructure.h
+// Copyright (c) 2011 iZotope Inc.
 
 // Microsoft Archive (Lib) format looks like this (more details at http://msdn.microsoft.com/en-us/windows/hardware/gg463119)
     // Signature :”!<arch>\n”

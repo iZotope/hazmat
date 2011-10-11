@@ -3,7 +3,7 @@
 //   or rename namespaces and classes to protect you from hazardous name conflicts
 //
 // Written by Jasper Duba
-// Copyright 2011 iZotope Inc.
+// Copyright (c) 2011 iZotope Inc.
 
 #include "stdafx.h"
 #include "ArchiveStructure.h"

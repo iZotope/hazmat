@@ -1,3 +1,6 @@
+// ArchiveStructure.cpp
+// Copyright (c) 2011 iZotope Inc.
+
 #include "stdafx.h"
 #include "ArchiveStructure.h"
 using namespace std;

@@ -25,14 +25,14 @@ To nest all symbols into ABC, but exclude two symbols
 
 Notes
 -----
-Hazmat may not work properly on libraries built with whole program optimization enabled. There are no garuntees that
-even the microsoft library tools will work on libs built with /GL. For more information on this limitation and how
+Hazmat may not work properly on libraries built with whole program optimization enabled. There are no guarantees that
+even the Microsoft library tools will work on libs built with /GL. For more information on this limitation and how
 /GL effects static libraries visit [MSDN /GL (Whole Program Optimization)][1]
 
 
 License
 -------
-Hazmat is distributed under the BSD License. See the file LICENSE for full license information.
+Hazmat is distributed under the BSD License. See the file LICENSE.md for full license information.
 Copyright (c) 2011 iZotope Inc.
 
 
