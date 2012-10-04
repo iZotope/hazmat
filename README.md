@@ -28,13 +28,13 @@ To nest all symbols into ABC, but exclude two symbols by manged name
 `hazmat /IN:original.lib /OUT:output.lib /NEST:ABC /XM:?mangledcplus@name@@abcdefg,?anothermangled@name@@abcdefg`
 
 To nest all symbols into ABC, but exclude two based on substring match
-`hazmat /IN:original.lib /OUT:output.lib /NEST:ABC /X:MyEngineClass,MyPublicAllocatorNamespace
+`hazmat /IN:original.lib /OUT:output.lib /NEST:ABC /X:MyEngineClass,MyPublicAllocatorNamespace`
 
 To obfuscate all the symbols in original lib
-`hazmat /IN:original.lib /OUT:output.lib /OBFS
+`hazmat /IN:original.lib /OUT:output.lib /OBFS`
 
 To obfuscate all the symbols, and nest the obfuscated symbols into a namespace but still expose public namespaces or classes
-`hazmat /IN:original.lib /OUT:output.lib /OBFS /NEST:ABC /X:PublicInterfaceClass,PublicFactoryNamespace
+`hazmat /IN:original.lib /OUT:output.lib /OBFS /NEST:ABC /X:PublicInterfaceClass,PublicFactoryNamespace`
 
 Notes
 -----
