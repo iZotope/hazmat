@@ -16,13 +16,19 @@ namespace {
     // in this library
     set<string> inclusive_string_set;
 
+    enum FileOpenMode {
+        READING,
+        WRITING
+    };
+
+
     // Pad the file out and return the delta of stop - start
-    unsigned int PadFileStream(fstream * const file, unsigned int start_position = 0) {
-        int stop_position = (file->flags() | ios::in) ? static_cast<int>(file->tellg()) : static_cast<int>(file->tellp());
+    unsigned int PadFileStream(fstream * const file, FileOpenMode mode, unsigned int start_position = 0) {
+        int stop_position = (mode == READING) ? static_cast<int>(file->tellg()) : static_cast<int>(file->tellp());
 
         if( (stop_position - start_position) % 2 ){
             char padding(10);
-            if(file->flags() | ios::in) {
+            if(mode == READING) {
                 file->read(&padding, sizeof(padding));
             } else {
                 file->write(&padding, sizeof(padding));
@@ -110,7 +116,7 @@ bool FirstLinkerMember::ReadEntry(fstream * const file)  {
         inclusive_string_set.insert(symbol_name);
     }
 
-    TotalSize += PadFileStream(file, start_position);
+    TotalSize += PadFileStream(file, READING, start_position);
     return true;
 }
 
@@ -132,7 +138,7 @@ bool FirstLinkerMember::WriteEntry(fstream * const file)  {
         file->write(str.c_str(), str.length() + 1);
     });
 
-    PadFileStream(file, start_position);
+    PadFileStream(file, WRITING, start_position);
 
     return true;
 }
@@ -178,7 +184,7 @@ bool SecondLinkerMember::ReadEntry(fstream * const file)  {
         string_table.push_back(symbol_name);
     }
 
-    TotalSize += PadFileStream(file, start_position);
+    TotalSize += PadFileStream(file, READING, start_position);
     return true;
 }
 
@@ -200,7 +206,7 @@ bool SecondLinkerMember::WriteEntry(fstream * const file)  {
         file->write(str.c_str(), str.length() + 1);
     });
 
-    PadFileStream(file, start_position);
+    PadFileStream(file, WRITING, start_position);
 
     return true;
 }
@@ -228,7 +234,7 @@ bool LongnamesMember::ReadEntry(fstream * const file) {
         memsize -= longname.size() + 1; // +1 for the \0 at the end of the string
     }
     
-    TotalSize += PadFileStream(file, start_position);
+    TotalSize += PadFileStream(file, READING, start_position);
 
     return true;
 }
@@ -244,7 +250,7 @@ bool LongnamesMember::WriteEntry(fstream * const file) {
             file->write(str.c_str(), str.length() + 1); 
     });
 
-    PadFileStream(file, start_position);
+    PadFileStream(file, WRITING, start_position);
 
     return true;
 }
@@ -284,7 +290,7 @@ bool ArchiveMember::ReadEntry(fstream * const file) {
         string_table.push_back(string_table_entry);
     }
 
-    TotalSize += PadFileStream(file, start_position);
+    TotalSize += PadFileStream(file, READING, start_position);
 
     return true;
 }
@@ -306,7 +312,7 @@ bool ArchiveMember::WriteEntry(fstream * const file) {
 
     for_each(string_table.begin(), string_table.end(), [&file](string str) { file->write(str.c_str(), str.length() + 1); } );
 
-    PadFileStream(file, start_position);
+    PadFileStream(file, WRITING, start_position);
 
     return true;
 }
@@ -337,10 +343,59 @@ bool ArchiveFile::Read(fstream * const libfile) {
 }
 
 // Nest the symbols in the parse archive file into namespace_nest
-bool ArchiveFile::EditSymbolNames(const vector<string> &exclusions, vector<function<void (string * const edit_string)> > update_symbol_name_funcs) {
+bool ArchiveFile::EditSymbolNames(const vector<string> &object_exclusions, const vector<string> &exclusions, vector<string> &mangled_exclusions, vector<function<void (string * const edit_string)> > update_symbol_name_funcs) {
 
     // Start by removing explicitly excluded symbols from our inclusive set of re nameable symbols
-    for_each(exclusions.begin(), exclusions.end(), [](string str) { inclusive_string_set.erase(str); });
+    // First we add all the symbols to exclusions that are in excluded objects
+    for(unsigned int i= 0; i < members.size(); ++i ) {
+            // Get the long names index
+
+            // get the member name from the longnames member
+            if(i < long_names.longnames_table.size()) {
+                string current_file_name(long_names.longnames_table[i]);
+
+                vector<string>::const_iterator excluded_object = object_exclusions.begin();
+
+                for(; excluded_object != object_exclusions.end(); ++excluded_object) {
+                    size_t find_index = current_file_name.find(*excluded_object);
+                    if( find_index != string::npos ) {
+                        break;
+                    }
+                }
+                
+                if(excluded_object != object_exclusions.end()) {
+                    //this file name is in the exclusions list
+                    for_each(members[i].string_table.begin(), members[i].string_table.end(), [](string str) {
+                        int i = inclusive_string_set.erase(str); 
+                        if(i > 0)
+                            cout << "Excluding symbol : " << str << endl;
+                    });
+                }
+            }
+
+    }
+
+    // Queue up removal of these symbols if they substring match any of our exclusion strings
+    if(!exclusions.empty()) {
+        // Note: this is MUCH slower than if you know the full mangled name. Prefer using the /XM option with
+        // full mangled names to avoid this cost.
+        for(auto inc_str = inclusive_string_set.begin(); inc_str != inclusive_string_set.end(); ++inc_str) {
+            for(auto excl_str= exclusions.begin(); excl_str != exclusions.end(); ++excl_str) {
+                if( (*inc_str).find(*excl_str) != string::npos ) {
+                    mangled_exclusions.push_back(*inc_str);
+                }
+            }
+        }
+    }
+
+    // Remove these items from the inclusive set
+    for_each(mangled_exclusions.begin(), mangled_exclusions.end(), [](string str) { 
+        int i = inclusive_string_set.erase(str); 
+        if(i > 0)
+            cout << "Excluding symbol : " << str << endl;
+        
+    });
+
 
     // Update tables
 

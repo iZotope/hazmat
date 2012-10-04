@@ -5,6 +5,7 @@
 #include <intrin.h>
 
 #include <iostream>
+#include <iomanip>
 #include <string>
 #include <sstream>
 #include <algorithm>

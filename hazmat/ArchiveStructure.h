@@ -104,6 +104,6 @@ struct ArchiveFile {
 
     bool Read(std::fstream * const libfile);
     bool Write(std::fstream * const libfile);
-    bool EditSymbolNames(const std::vector<std::string> &exclusions, std::vector<std::function<void (std::string * const edit_string)> > update_symbol_name_funcs);
+    bool EditSymbolNames(const std::vector<std::string> &object_exclusions, const std::vector<std::string> &exclusions, std::vector<std::string> &mangled_exclusions, std::vector<std::function<void (std::string * const edit_string)> > update_symbol_name_funcs);
 };
 
